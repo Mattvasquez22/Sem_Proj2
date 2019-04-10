@@ -19,8 +19,6 @@ def characterize_client(addr):
 def new_client(clientsocket,addr):
     while True:
         msg =  clientsocket.recv(1024)
-        #characterize_client(addr[0])
-        #place_in_pool(addr[0])
         if(msg == 'pair'):
             campaings = pickle.dumps(get_campaigns(),-1)
             clientsocket.send(campaings)

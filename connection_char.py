@@ -6,29 +6,40 @@
 
 import time
 import ConfigParser
+from threading import Lock
 
-parser =  ConfigParser.ConfigParser()
+parser = ConfigParser.ConfigParser()
 parser.read('config.ini')
 check_time = int(parser.get("Settings", "check_time"))
 threshold = int(parser.get("Settings", "timestamp_threshold"))
 current_time = int(time.time())
+lock_place = Lock()
+lock_remove = Lock()
 
 #MISSING: port specification
 
 def placeinPool(client,timestamp):
-    print("PLACING IN POOL")
-    POOL[client] = [timestamp, "characterization"]
+    lock_place.acquire()
+    try:
+        print("PLACING IN POOL CLIENT: {}".format(client))
+        POOL[client] = [timestamp, "characterization"]
+    finally:
+        lock_place.release()
 
 def removefromPool(client):
-    print("REMOVING FROM POOL")
-    POOL.pop(client)
-
+    lock_remove.acquire()
+    try:
+        print("REMOVING FROM POOL CLIENT: {}".format(client))
+        POOL.pop(client)
+    finally:
+        lock_remove.release()
+    
 def characterize(client):
+    #TO COMPLETE
     print("CHARACTERIZING")
 
 def assignTimestamp(client):
     print("ASSIGNING TIMESTAMP")
-    #tstamp = time.ctime(time.time())
     tstamp = int(time.time())
     TIMESTAMPS[client] = tstamp
     return tstamp
@@ -45,31 +56,25 @@ def classifyConnection(client):
         timestamp = assignTimestamp(client)
         placeinPool(client,timestamp)    
 
-def pingClient(client):
-    return True
-
 def checkTimestamp():
     if(len(POOL) > 0):
         for client in POOL.keys():
             ip = client.split(":")[0]
             port = client.split(":")[1]
-            #Check if client anwers to ping
-            print("revision")
-            if(pingClient(client)):
-                #Check if timestamp is below threshold
-                print("ping succesfull")
-                current_time = int(time.time())
-                time_dif = current_time - POOL[client][0]
-                if(time_dif > threshold):
-                    print("bad timestamp")
-                    characterize(client)
-                    timestamp = assignTimestamp(client)
-                    placeinPool(client,timestamp)
-                else:
-                    print("good itmestamp, nothing to see here")
-                    #pass
-            else:
+            print("Checking client: " + client)
+            current_time = int(time.time())
+            time_dif = current_time - POOL[client][0]
+            if(time_dif > threshold):
+                print("bad timestamp")
                 removefromPool(client)
+                characterize(client)
+                timestamp = assignTimestamp(client)
+                placeinPool(client,timestamp)
+            else:
+                print("good timestamp, nothing to do here")
+                #pass
+    else:
+        pass
 
 POOL = {}
 TIMESTAMPS = {}

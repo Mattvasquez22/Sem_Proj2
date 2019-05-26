@@ -17,9 +17,15 @@ if __name__=="__main__":
     client = SocketClient(HOST_MANAGER,PORT_MANAGER)
     client.daemon = True
     client.start()
- 
+
+ct = 0
 while True:
-    message = raw_input("Enter command: \n")
+    if(ct == 0):
+        message = raw_input()
+    else:
+        message = raw_input("Enter command: \n")
+    ct += 1 
+
     if message == 'Disconnect':
         break
     elif message == 'Pair':

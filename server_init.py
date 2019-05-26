@@ -53,8 +53,6 @@ class SocketServer(Thread):
                 self.semaph.acquire()
                 client_sock, client_addr = self.sock.accept()
             except socket.timeout:
-            #except:
-                #raise
                 client_sock = None
 
             if(client_sock):
@@ -92,7 +90,6 @@ class SocketServerThread(Thread):
                     rdy_read, rdy_write, sock_err = select.select([self.client_sock,], [self.client_sock,], [], 5)
                 except select.error as err:
                     print("[Thr {}] Select() failed on socket with {}".format(self.number,self.client_addr))
-                    print("me lo paro")
                     self.stop()
                     return
 
@@ -103,10 +100,6 @@ class SocketServerThread(Thread):
                     except:
                         read_data = '' 
                     if(len(read_data) == 0):
-                        #print('sabra Diosito')
-                        #continue
-                        #print("[Connection closed for client {}] with thread {}".format(self.client_ID, self.number))
-                        #print("al taxi")
                         self.stop()
                     #Checks for pair request, finds pair and sends information
                     if(read_data.rstrip() == "Pair"):
@@ -116,35 +109,32 @@ class SocketServerThread(Thread):
                         #Pairing up:
                         serv,clnt = findPair(self)
                         if(serv and clnt):
-                            #Send client id to server
-                            THREADS[serv].client_sock.send("Server-{}".format(THREADS[clnt].client_ID))
-			    #CHECK THE CONNECTION TO LISTEN TO
                             #Ask the client server for the port and send the other's client information
                             #Receive the port where the server will be listening to
-                            client_serv_port = THREADS[serv].client_sock.recv(4)
-                            print("Received port is: "+client_serv_port)
-                            #THREADS[serv].client_sock.send(THREADS[clnt].client_ID)
+                            ##client_serv_port = THREADS[serv].client_sock.recv(255)
+                            ##print("Received port is: "+client_serv_port)
                             #print("sent client id {}".format(THREADS[clnt].client_ID))
-                            #Send the port of the server to client
-                            THREADS[clnt].client_sock.send(client_serv_port)
-                            #Send the server ID to the client
-                            THREADS[clnt].client_sock.send(THREADS[serv].client_ID.split(":")[0])
-                            print("Sent server info")
-                            #THREADS[serv].stop()
+                           #THREADS[serv].stop()
                             #THREADS[serv].close()
                             #print("Sent client info {}".format(self.client_ID))
-
+                            #break
+                            try:
+                                #Send to the client_server the id of the client
+                                THREADS[serv].client_sock.sendall("Server-{}".format(THREADS[clnt].client_ID))
+                                #Receive the port
+                                client_serv_port = THREADS[serv].client_sock.recv(255)
+                                #Send the client_server information to the client
+                                THREADS[clnt].client_sock.send(client_serv_port)
+                                THREADS[clnt].client_sock.send(THREADS[serv].client_ID.split(":")[0])
+                            except:
+                                #raise
+                                break
                         else:
                             print("PAIR NOT FOUND")
                             self.client_sock.send('Nope')
                             self.close()
                             print("[Connection closed for client {}] with thread {}".format(self.client_ID, self.number))
                             return
-                    #Checks for disconnect message 
-                    #elif(read_data.rstrp() == "Disconnect"):
-                    #    self.stop()
-                    #else:
-                    #    pass
             else:
                 print("[Thr {}] No client is connected, SocketServer can't receive data".format(self.number))
                 self.stop()
@@ -161,7 +151,7 @@ class SocketServerThread(Thread):
             #Remove client from the pool
             if(self.client_ID in POOL):
                 removefromPool(self.client_ID)     
-            THREADS.pop(self.client_ID) 
+                THREADS.pop(self.client_ID) 
             self.client_sock.close()
 
 

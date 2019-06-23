@@ -4,12 +4,19 @@
 # respectively.                                         #
 #########################################################
 
-#import socket
 import threading
 import ConfigParser
-from client_init import *
+import signal
+from initialization_client import *
+
+def signal_handler(sig, frame):
+ print("Exiting")
+ client.stop()
+ client.join()
+ sys.exit(0)
 
 if __name__=="__main__":
+    signal.signal(signal.SIGINT, signal_handler)
     parser =  ConfigParser.ConfigParser()
     parser.read('config.ini')
     HOST_MANAGER = parser.get('Settings', 'host_manager')
@@ -19,22 +26,27 @@ if __name__=="__main__":
     client.start()
 
 ct = 0
-while True:
-    if(ct == 0):
-        message = raw_input()
-    else:
-        message = raw_input("Enter command: \n")
-    ct += 1 
+done = False
 
-    if message == 'Disconnect':
-        break
-    elif message == 'Pair':
-        thread = threading.Thread(target=pairClient)
-        thread.daemon = True
-        try:
-            client.close()
-            thread.start()
-        except:
-            thread.close()
+while not done:
+    if(client.is_alive()):
+    #if(True):
+        #Counter used just for esthetic purposes in the message presentation
+        if(ct == 0):
+            message = raw_input()
+        else:
+            message = raw_input("Enter command: \n")
+        ct += 1 
+    
+        if(message == 'Disconnect'):
             break
-
+        elif(message == 'Pair'):
+            try:
+                client.close()
+                done = pairClient()
+                break
+            except:
+                raise
+                break
+    else:
+        break

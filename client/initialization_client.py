@@ -5,6 +5,9 @@
 #########################################################
 
 import ConfigParser
+import select
+import sys
+from threading import Thread,Semaphore
 from server_camp import *
 from client_camp import *
 
@@ -13,9 +16,11 @@ parser.read('config.ini')
 HOST_MANAGER = parser.get('Settings', 'host_manager')
 PORT_MANAGER = int(parser.get('Settings', 'port_manager'))
 HOST_CLIENT_SERVER = parser.get('Settings', 'host_client_server')
-PORT_CLIENT_SERVER = int(parser.get('Settings', 'port_client_server'))
+TCP_PORT_CLIENT_SERVER = int(parser.get('Settings', 'tcp_port_client_server'))
+UDP_PORT_CLIENT_SERVER = int(parser.get('Settings', 'udp_port_client_server'))
 
 def pairClient():
+    #Connection to manager
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR,1)
     sock.connect((HOST_MANAGER,PORT_MANAGER))
@@ -24,25 +29,24 @@ def pairClient():
     while sock:
         sock.send("Pair")
         data = sock.recv(255)
+        #Campaign selection
         print("Campaigns are: " + data)
-        sock.send('4')
         sock.send('1')
         data = sock.recv(255)
-        print('data is ' + data)
-        if(data != "Nope"):
-            pair_serv_port = data[:4]
+        if(data != "Nope" and len(data) != 0):
+            #Receive ports of new server
+            client_serv_tcp_port = int(data.split('-')[0])
+            client_serv_udp_port = int(data.split('-')[1])
+            #Receive ip of new server
             pair_serv_ip = sock.recv(255)
-            print("server port is: {}".format(pair_serv_port))
-            print("server ip   is: {}".format(pair_serv_ip))
-            #sock.close()
-            startCampaign(pair_serv_ip,pair_serv_port)
-            break
+            clientCampaign(pair_serv_ip,client_serv_tcp_port,client_serv_udp_port)
         else:
             print("Pair not found")
-            return
+            return False
 
     sock.shutdown(socket.SHUT_RDWR)
     sock.close()
+    return True
 
 class SocketClient(Thread):
     def __init__(self,host,port):
@@ -56,53 +60,47 @@ class SocketClient(Thread):
         self.sock_threads = []
         
     def close(self):
-        for thr in self.sock_threads:
-            thr.stop()
-            thr.join()
-
         if(self.sock):
             self.sock.close()
             self.sock = None
 
     def run(self):
         self.__stop = False
-        a = self.sock.recv(42)
-        print(a)
+        greeting = self.sock.recv(42)
+        print(greeting)
         while not self.__stop:
             if(self.sock):
                 try:
                     rdy_read, rdy_write, sock_err = select.select([self.sock,], [self.sock,], [], 5)        
                 except select.error as err:
-                    print('stop')
                     self.stop()
                     return
             
             if(len(rdy_read) > 0):
+                #Message received from manager
                 read_data = self.sock.recv(255)
-                print("DATA READ IS: " + read_data)
+                print('read data is {}'.format(read_data))
                 if("Server" in read_data):
                     print("Become a server!")
-                    #try:
-                    self.sock.send(str(PORT_CLIENT_SERVER))
-                    print('port sent: '+ str(PORT_CLIENT_SERVER))
-                    #except:
-                    #print('not sent')
-
-                    client_info = read_data.split('-')[1]
-                    client_ip = client_info.split(':')[0]
-                    print("received: " + client_ip)
-                    print("START LISTENING")
-                    client_server = SocketServer(HOST_CLIENT_SERVER,PORT_CLIENT_SERVER,1)
-                    client_server.daemon = True
-                    client_server.start()
-                    break
-                    #client_server = SocketServer(HOST,int(PORT_S)) 
-                    #client_server.start()
-                    #self.close()
+                    s,lstn_flag = startListen(HOST_CLIENT_SERVER,TCP_PORT_CLIENT_SERVER)
+                    #Check if new server is ready
+                    if(lstn_flag):
+                        print('Server is listening')
+                        ports = '{}-{}'.format(TCP_PORT_CLIENT_SERVER,UDP_PORT_CLIENT_SERVER)
+                        self.sock.sendall(ports)
+                        self.close()
+                        client_info = read_data.split('-')[1]
+                        client_ip = client_info.split(':')[0]
+                        print('Start campaing')
+                        serverCampaign(s,client_ip)
+                        break
+                    else:
+                        self.sock.sendall('fail')
+                        print('Server failed to start')
+                        break
                 self.stop()
         self.close() 
 
     def stop(self):
         self.__stop = True
 
-#

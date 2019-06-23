@@ -35,9 +35,9 @@ if __name__=="__main__":
 
     signal.signal(signal.SIGINT, signal_handler)
     while True:
-        q = raw_input("Check for pool: ")
-        if(q == 'Y'):
-           print(server.sock_pool)
-           print(server.sock_timestamp)
-       #pass
+        #q = raw_input("Check for pool: ")
+        #if(q == 'Y'):
+        #   print(server.sock_pool)
+        #   print(server.sock_timestamp)
+        pass
 

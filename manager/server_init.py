@@ -7,7 +7,7 @@
 import socket
 import select
 from threading import Thread
-from threading import BoundedSemaphore
+from threading import BoundedSemaphore,Semaphore
 from connection_char import *
 from campaign_sel import *
 from find_pair import *
@@ -58,7 +58,10 @@ class SocketServer(Thread):
             if(client_sock):
                 client_thr = SocketServerThread(client_sock, client_addr, self.semaph)
                 self.sock_threads.append(client_thr)
+                #Dictionary needed to keep track of active threads
                 THREADS[client_thr.client_ID] = client_thr
+                #Dictionary of semaphores needed to lock threads respectively
+                SEMAPHORES[client_thr.client_ID] = Semaphore()
                 client_thr.start()
             else:
                 self.semaph.release()
@@ -82,6 +85,7 @@ class SocketServerThread(Thread):
         self.client_sock.send("Welcome to manager!")
         #check for timestamp, clasify and characterize
         classifyConnection(self.client_ID)
+        #print("Pool is: {}".format(POOL))
         self.__stop = False
         while not self.__stop:
             if(self.client_sock):
@@ -90,15 +94,22 @@ class SocketServerThread(Thread):
                     rdy_read, rdy_write, sock_err = select.select([self.client_sock,], [self.client_sock,], [], 5)
                 except select.error as err:
                     print("[Thr {}] Select() failed on socket with {}".format(self.number,self.client_addr))
-                    self.stop()
+                    self.close()
                     return
 
                 if(len(rdy_read) > 0):
+                    SEMAPHORES[self.client_ID].acquire()
                     try:
-                        read_data =  self.client_sock.recv(255)
-                    #Check if socket has been closed
-                    except:
-                        read_data = '' 
+                        rdy_read2, rdy_write, sock_err = select.select([self.client_sock,], [], [], 5)
+                    except select.error as err:
+                        self.close()
+                        return
+                    if(len(rdy_read2) == 0):
+                        self.close()
+                        return
+
+                    read_data =  self.client_sock.recv(255)
+                    SEMAPHORES[self.client_ID].release()
                     if(len(read_data) == 0):
                         self.stop()
                     #Checks for pair request, finds pair and sends information
@@ -109,29 +120,28 @@ class SocketServerThread(Thread):
                         #Pairing up:
                         serv,clnt = findPair(self)
                         if(serv and clnt):
-                            #Ask the client server for the port and send the other's client information
-                            #Receive the port where the server will be listening to
-                            ##client_serv_port = THREADS[serv].client_sock.recv(255)
-                            ##print("Received port is: "+client_serv_port)
-                            #print("sent client id {}".format(THREADS[clnt].client_ID))
-                           #THREADS[serv].stop()
-                            #THREADS[serv].close()
-                            #print("Sent client info {}".format(self.client_ID))
-                            #break
                             try:
+                                SEMAPHORES[serv].acquire()
                                 #Send to the client_server the id of the client
                                 THREADS[serv].client_sock.sendall("Server-{}".format(THREADS[clnt].client_ID))
                                 #Receive the port
-                                client_serv_port = THREADS[serv].client_sock.recv(255)
-                                print("port received is: " + client_serv_port)
-                                #Send the client_server information to the client
-                                THREADS[clnt].client_sock.send(client_serv_port)
-                                THREADS[clnt].client_sock.send(THREADS[serv].client_ID.split(":")[0])
+                                ports = THREADS[serv].client_sock.recv(255)
+                                if(ports != 'fail'):
+                                    client_serv_tcp_port = ports.split('-')[0]
+                                    client_serv_udp_port = ports.split('-')[1]
+                                    THREADS[clnt].client_sock.send(ports)
+                                    THREADS[clnt].client_sock.send(THREADS[serv].client_ID.split(":")[0])
+                                    print("Pairing finished")
+                                else:
+                                    print('Error with client server')
+                                    SEMAPHORES[serv].release()
+                                    self.close()
+                                    return
                             except:
-                                raise
-                                #break
+                                SEMAPHORES[serv].release()
+                            SEMAPHORES[serv].release()
                         else:
-                            print("PAIR NOT FOUND")
+                            print("Pair not found")
                             self.client_sock.send('Nope')
                             self.close()
                             print("[Connection closed for client {}] with thread {}".format(self.client_ID, self.number))
@@ -157,3 +167,4 @@ class SocketServerThread(Thread):
 
 
 THREADS = {}
+SEMAPHORES = {}

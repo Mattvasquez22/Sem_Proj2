@@ -19,23 +19,20 @@ def signal_handler(sig, frame):
     sys.exit(0)
 
 if __name__=="__main__":
-    try:
-        parser =  ConfigParser.ConfigParser()
-        parser.read('config.ini')
-        HOST = parser.get('Settings', 'host_manager')
-        PORT = int(parser.get('Settings', 'port_manager'))
-        MAX_CLIENTS = int(parser.get('Settings', 'max_clients'))
-        CHECK_TIME = int(parser.get('Settings', 'check_time'))
-        server = SocketServer(HOST,PORT,MAX_CLIENTS)
-        server.daemon = True
-        server.start()
-        #Neded to check every x time for the timestamps of the clients in the pool
-        checker = task.LoopingCall(checkTimestamp)
-        checker.start(CHECK_TIME)
-        reactor.run()
+    parser =  ConfigParser.ConfigParser()
+    parser.read('config.ini')
+    HOST = parser.get('Settings', 'host_manager')
+    PORT = int(parser.get('Settings', 'port_manager'))
+    MAX_CLIENTS = int(parser.get('Settings', 'max_clients'))
+    CHECK_TIME = int(parser.get('Settings', 'check_time'))
+    server = SocketServer(HOST,PORT,MAX_CLIENTS)
+    server.daemon = True
+    server.start()
+    #Neded to check every x time for the timestamps of the clients in the pool
+    checker = task.LoopingCall(checkTimestamp)
+    checker.start(CHECK_TIME)
+    reactor.run()
 
-        signal.signal(signal.SIGINT, signal_handler)
-        while True:
-            pass
-    except:
+    signal.signal(signal.SIGINT, signal_handler)
+    while True:
         pass

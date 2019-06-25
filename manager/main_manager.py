@@ -19,7 +19,7 @@ def signal_handler(sig, frame):
     sys.exit(0)
 
 if __name__=="__main__":
-try:
+    try:
         parser =  ConfigParser.ConfigParser()
         parser.read('config.ini')
         HOST = parser.get('Settings', 'host_manager')
@@ -37,5 +37,5 @@ try:
         signal.signal(signal.SIGINT, signal_handler)
         while True:
             pass
-except:
-    pass
+    except:
+        pass
